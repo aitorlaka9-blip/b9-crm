@@ -1,19 +1,30 @@
 import { exigirRol } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { Cabecera } from "@/components/ui";
+import { guardarObjetivo } from "../acciones-inicio";
 import { alternarPersona, alternarServicio, anadirPersona, anadirServicio } from "./actions";
 
 export default async function AjustesPage() {
   await exigirRol("direccion");
   const supabase = await createClient();
-  const [{ data: equipo }, { data: servicios }] = await Promise.all([
+  const [{ data: equipo }, { data: servicios }, { data: objetivo }] = await Promise.all([
     supabase.from("equipo").select("*").order("activo", { ascending: false }).order("nombre"),
     supabase.from("servicios").select("*").order("activo", { ascending: false }).order("orden"),
+    supabase.from("configuracion").select("valor").eq("clave", "objetivo_mrr").maybeSingle(),
   ]);
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Cabecera titulo="Ajustes" />
+
+      <section className="tarjeta p-4 md:p-6">
+        <h2 className="mb-3 font-semibold">Objetivo de facturación mensual</h2>
+        <form action={guardarObjetivo} className="flex gap-2">
+          <input name="objetivo" type="number" min="1" step="100" defaultValue={Number(objetivo?.valor ?? 50000)} className="input max-w-48" />
+          <span className="self-center text-sm text-zinc-500">€/mes</span>
+          <button className="btn-primario">Guardar</button>
+        </form>
+      </section>
 
       <section className="tarjeta p-4 md:p-6">
         <h2 className="font-semibold">Equipo interno</h2>

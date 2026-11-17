@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FileText, Home, LogOut, Settings, Users } from "lucide-react";
+import { Bell, FileText, Home, LogOut, Settings, Users } from "lucide-react";
 import type { Usuario } from "@/lib/sesion";
 
 const ROLES = { direccion: "Dirección", comercial: "Comercial", equipo: "Equipo" };
 
-export function Navegacion({ usuario }: { usuario: Usuario }) {
+export function Navegacion({ usuario, sinLeer }: { usuario: Usuario; sinLeer: number }) {
   const ruta = usePathname();
   const items = [
     { href: "/", texto: "Inicio", icono: Home, roles: ["direccion", "comercial"] },
     { href: "/propuestas", texto: "Propuestas", icono: FileText, roles: ["direccion", "comercial"] },
     { href: "/clientes", texto: "Clientes", icono: Users, roles: ["direccion", "comercial", "equipo"] },
+    { href: "/avisos", texto: "Avisos", icono: Bell, roles: ["direccion", "comercial", "equipo"] },
     { href: "/ajustes", texto: "Ajustes", icono: Settings, roles: ["direccion"] },
   ].filter((i) => i.roles.includes(usuario.rol));
 
@@ -37,6 +38,9 @@ export function Navegacion({ usuario }: { usuario: Usuario }) {
             >
               <Icono className="h-4 w-4" />
               {texto}
+              {href === "/avisos" && sinLeer > 0 && (
+                <span className="ml-auto rounded-full bg-red-600 px-1.5 text-[11px] font-semibold text-white">{sinLeer}</span>
+              )}
             </Link>
           ))}
         </nav>
@@ -61,7 +65,14 @@ export function Navegacion({ usuario }: { usuario: Usuario }) {
               activo(href) ? "text-zinc-900" : "text-zinc-400"
             }`}
           >
-            <Icono className="h-5 w-5" />
+            <span className="relative">
+              <Icono className="h-5 w-5" />
+              {href === "/avisos" && sinLeer > 0 && (
+                <span className="absolute -right-2 -top-1.5 rounded-full bg-red-600 px-1 text-[10px] font-semibold leading-4 text-white">
+                  {sinLeer > 9 ? "9+" : sinLeer}
+                </span>
+              )}
+            </span>
             {texto}
           </Link>
         ))}

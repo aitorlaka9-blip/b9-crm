@@ -81,4 +81,25 @@ for (const c of clientes) {
     { cliente_id: cl.id, funcion_id: funciones.find((f) => f.nombre === "Filmmaker").id, persona_id: equipo[2].id },
   ]);
 }
+// Historial de propuestas ya decididas (para el dashboard)
+const historial = [
+  ["Bodega Demo Rioja", "Content Pro", 1600, "aceptada", 40, false, null],
+  ["Academia Demo Inglés", "Lead Boost", 2000, "denegada", 25, true, "precio"],
+  ["Hotel Demo Costa", "Podcast + redes", 3000, "denegada", 60, false, "timing"],
+  ["Estética Demo Bella", "Content Starter", 950, "denegada", 15, true, "precio"],
+  ["Concesionario Demo", "Lead Boost", 2500, "sin_respuesta", 70, true, null],
+  ["Tienda Demo Moda", "UGC + Ads", 1800, "denegada", 8, false, "competencia"],
+  ["Coach Demo Pro", "VSL + Ads", 2200, "aceptada", 5, true, null],
+];
+for (const [empresa, plan, m, estado, diasDecision, abx, cat] of historial) {
+  const { data: o } = await sb.from("oportunidades").insert({ empresa, created_by: userId }).select().single();
+  const { data: pr } = await sb.from("propuestas").insert({
+    oportunidad_id: o.id, titulo_plan: plan, importe_mensual: m, duracion_meses: 6, fecha_envio: hace(diasDecision + 14),
+    vendida_por_tipo: abx ? "abx" : "interno", vendida_por: abx ? equipo[3].id : equipo[0].id, estado: "enviada", created_by: userId,
+  }).select().single();
+  if (cat) await sb.from("motivos").insert({ tipo: "rechazo_propuesta", propuesta_id: pr.id, categoria: cat, comentario: "Ejemplo" });
+  await sb.from("propuestas").update({ estado, fecha_decision: new Date(Date.now() - diasDecision * 864e5).toISOString() }).eq("id", pr.id);
+}
+await sb.from("recordatorios").insert({ tipo: "recontactar", fecha: hace(0), titulo: "Volver a contactar a Academia Demo Inglés", asignado_a: userId });
+
 console.log("Datos de ejemplo cargados. Entra con aitor@demo.local / demo1234");
