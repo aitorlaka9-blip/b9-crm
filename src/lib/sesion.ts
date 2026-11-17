@@ -19,7 +19,7 @@ export const usuarioActual = cache(async (): Promise<Usuario | null> => {
 export async function exigirRol(...roles: Rol[]): Promise<Usuario> {
   const u = await usuarioActual();
   if (!u) redirect("/login");
-  if (!u.activo) redirect("/login?error=sin_acceso");
+  if (!u.activo) redirect("/auth/sin-acceso");
   if (roles.length && !roles.includes(u.rol)) redirect("/");
   return u;
 }

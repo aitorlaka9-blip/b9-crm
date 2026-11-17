@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "importar": "tsx --env-file=.env.local scripts/importar.ts"
+    "importar": "tsx --env-file=.env.local scripts/importar.ts",
+    "sql-instalacion": "node scripts/sql-instalacion.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.9.0",

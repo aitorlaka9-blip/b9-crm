@@ -2,20 +2,85 @@ import { exigirRol } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { Cabecera } from "@/components/ui";
 import { guardarObjetivo } from "../acciones-inicio";
-import { alternarPersona, alternarServicio, anadirPersona, anadirServicio } from "./actions";
+import { alternarUsuario, borrarInvitacion, cambiarRol, invitarUsuario, alternarPersona, alternarServicio, anadirPersona, anadirServicio } from "./actions";
+
+const ROLES = {
+  direccion: "Dirección — ve y gestiona todo",
+  comercial: "Comercial — propuestas y clientes, sin Ajustes",
+  equipo: "Equipo — solo sus clientes asignados, sin importes",
+};
 
 export default async function AjustesPage() {
-  await exigirRol("direccion");
+  const yo = await exigirRol("direccion");
   const supabase = await createClient();
   const [{ data: equipo }, { data: servicios }, { data: objetivo }] = await Promise.all([
     supabase.from("equipo").select("*").order("activo", { ascending: false }).order("nombre"),
     supabase.from("servicios").select("*").order("activo", { ascending: false }).order("orden"),
     supabase.from("configuracion").select("valor").eq("clave", "objetivo_mrr").maybeSingle(),
   ]);
+  const [{ data: usuarios }, { data: invitaciones }] = await Promise.all([
+    supabase.from("usuarios").select("*").order("activo", { ascending: false }).order("nombre"),
+    supabase.from("invitaciones").select("*").order("created_at"),
+  ]);
+  const pendientes = (invitaciones ?? []).filter((i) => !(usuarios ?? []).some((u) => u.email === i.email));
 
   return (
     <div className="mx-auto max-w-3xl space-y-6">
       <Cabecera titulo="Ajustes" />
+
+      <section className="tarjeta p-4 md:p-6">
+        <h2 className="font-semibold">Acceso al CRM</h2>
+        <p className="mb-4 text-sm text-zinc-500">
+          Solo entran las personas invitadas, con su cuenta de Google. Para que alguien del rol Equipo vea sus clientes, su email
+          tiene que ser el mismo que el de su ficha en &quot;Equipo interno&quot;.
+        </p>
+        <ul className="mb-4 divide-y divide-zinc-100">
+          {(usuarios ?? []).map((u) => (
+            <li key={u.id} className="flex flex-col gap-2 py-2 sm:flex-row sm:items-center">
+              <div className={`min-w-0 flex-1 text-sm ${u.activo ? "" : "text-zinc-400 line-through"}`}>
+                <p className="truncate font-medium">{u.nombre}</p>
+                <p className="truncate text-xs text-zinc-500">{u.email}</p>
+              </div>
+              {u.id === yo.id ? (
+                <span className="text-xs text-zinc-500">Tú · Dirección</span>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <form action={cambiarRol.bind(null, u.id)} className="flex gap-1">
+                    <select name="rol" defaultValue={u.rol} className="input w-auto py-1.5 text-sm">
+                      <option value="direccion">Dirección</option>
+                      <option value="comercial">Comercial</option>
+                      <option value="equipo">Equipo</option>
+                    </select>
+                    <button className="btn-secundario px-2.5 py-1.5">Guardar</button>
+                  </form>
+                  <form action={alternarUsuario.bind(null, u.id, !u.activo)}>
+                    <button className="text-xs text-zinc-500 underline">{u.activo ? "Quitar acceso" : "Dar acceso"}</button>
+                  </form>
+                </div>
+              )}
+            </li>
+          ))}
+          {pendientes.map((i) => (
+            <li key={i.email} className="flex items-center gap-2 py-2 text-sm">
+              <span className="flex-1 truncate">
+                {i.email} <span className="text-xs text-zinc-400">· invitado como {i.rol}, aún no ha entrado</span>
+              </span>
+              <form action={borrarInvitacion.bind(null, i.email)}>
+                <button className="text-xs text-zinc-500 underline">Cancelar</button>
+              </form>
+            </li>
+          ))}
+        </ul>
+        <form action={invitarUsuario} className="flex flex-col gap-2 sm:flex-row">
+          <input name="email" type="email" required placeholder="email@gmail.com o @b9studios.com" className="input" />
+          <select name="rol" defaultValue="equipo" className="input sm:w-auto">
+            {Object.entries(ROLES).map(([k, t]) => (
+              <option key={k} value={k}>{t}</option>
+            ))}
+          </select>
+          <button className="btn-primario">Invitar</button>
+        </form>
+      </section>
 
       <section className="tarjeta p-4 md:p-6">
         <h2 className="mb-3 font-semibold">Objetivo de facturación mensual</h2>
