@@ -1,9 +1,10 @@
 "use client";
 
-import { useTransition } from "react";
+import { useState, useTransition } from "react";
 import { Trash2 } from "lucide-react";
 import { cambiarEstado, eliminarPropuesta } from "@/app/(app)/propuestas/actions";
 import type { EstadoPropuesta } from "@/lib/etiquetas";
+import { ModalAceptar, ModalDenegar, type DatosAceptar } from "@/components/modales-propuesta";
 
 export function AccionesEstado({
   id,
@@ -11,15 +12,20 @@ export function AccionesEstado({
   diasDesdeEnvio,
   accionInicial,
   esDireccion,
+  datosAceptar,
 }: {
   id: string;
   estado: EstadoPropuesta;
   diasDesdeEnvio: number | null;
   accionInicial?: string;
   esDireccion: boolean;
+  datosAceptar: DatosAceptar;
 }) {
   const [pendiente, start] = useTransition();
-  const abierta = ["borrador", "enviada", "en_negociacion"].includes(estado);
+  const abierta = ["borrador", "enviada", "en_negociacion", "sin_respuesta"].includes(estado);
+  const [modal, setModal] = useState<"aceptar" | "denegar" | null>(
+    abierta && (accionInicial === "aceptar" || accionInicial === "denegar") ? accionInicial : null,
+  );
   const ir = (e: EstadoPropuesta) => start(() => cambiarEstado(id, e));
 
   return (
@@ -39,12 +45,12 @@ export function AccionesEstado({
             Marcar como enviada
           </button>
         )}
-        {(estado === "enviada" || estado === "en_negociacion") && (
+        {estado !== "borrador" && abierta && (
           <>
-            <button disabled title="Disponible en la fase 2" className="btn-exito">
+            <button onClick={() => setModal("aceptar")} className="btn-exito">
               Aceptada
             </button>
-            <button disabled title="Disponible en la fase 2" className="btn-peligro">
+            <button onClick={() => setModal("denegar")} className="btn-peligro">
               Denegada
             </button>
           </>
@@ -54,7 +60,7 @@ export function AccionesEstado({
             Sigue en negociación
           </button>
         )}
-        {abierta && estado !== "borrador" && (
+        {(estado === "enviada" || estado === "en_negociacion") && (
           <button
             disabled={pendiente}
             onClick={() => ir("sin_respuesta")}
@@ -81,9 +87,8 @@ export function AccionesEstado({
           </button>
         )}
       </div>
-      {accionInicial && abierta && (
-        <p className="w-full text-xs text-amber-700 md:hidden">Aceptar y denegar llegan en la fase 2.</p>
-      )}
+      {modal === "aceptar" && <ModalAceptar propuestaId={id} datos={datosAceptar} onCerrar={() => setModal(null)} />}
+      {modal === "denegar" && <ModalDenegar propuestaId={id} onCerrar={() => setModal(null)} />}
     </section>
   );
 }

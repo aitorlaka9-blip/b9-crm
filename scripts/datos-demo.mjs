@@ -20,7 +20,12 @@ const userId = u?.user?.id;
 
 const { data: equipo } = await sb
   .from("equipo")
-  .insert([{ nombre: "Aitor", usuario_id: userId }, { nombre: "Laura (guionista)" }, { nombre: "Marcos (filmmaker)" }])
+  .insert([
+    { nombre: "Aitor", usuario_id: userId, email: "aitor@demo.local", empresa: "b9" },
+    { nombre: "Laura (guionista)", email: null, usuario_id: null, empresa: "b9" },
+    { nombre: "Marcos (filmmaker)", email: null, usuario_id: null, empresa: "b9" },
+    { nombre: "Comercial ABX", email: "comercial@abx-demo.com", usuario_id: null, empresa: "abx" },
+  ])
   .select();
 
 const { data: servicios } = await sb.from("servicios").select("id, nombre");
@@ -46,17 +51,34 @@ const demos = [
 for (const d of demos) {
   const { data: o } = await sb.from("oportunidades").insert({
     empresa: d.empresa, nombre_contacto: d.contacto, sector: d.sector,
-    email: d.contacto.split(" ")[0].toLowerCase() + "@ejemplo.com", telefono: "600 000 000", created_by: userId,
+    email: d.contacto.split(" ")[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") + "@ejemplo.com", telefono: "600 000 000", created_by: userId,
   }).select().single();
   for (const p of d.versiones) {
     const { data: pr, error } = await sb.from("propuestas").insert({
       oportunidad_id: o.id, version: p.v, titulo_plan: p.plan, importe_mensual: p.m, importe_unico: p.u,
       duracion_meses: p.d, fecha_envio: p.envio == null ? null : hace(p.envio), preparada_por: equipo[0].id,
-      vendida_por_tipo: p.abx ? "abx" : "interno", vendida_por_nombre: p.abx ? "Comercial ABX" : "Aitor",
+      vendida_por_tipo: p.abx ? "abx" : "interno", vendida_por: p.abx ? equipo[3].id : equipo[0].id,
       estado: p.estado, created_by: userId,
     }).select().single();
     if (error) throw error;
     await sb.from("propuesta_servicios").insert(p.sv.map((n) => ({ propuesta_id: pr.id, servicio_id: sid(n) })));
   }
+}
+// Clientes ya activos (uno con la renovación a la vista)
+const { data: funciones } = await sb.from("funciones_internas").select("id, nombre");
+const clientes = [
+  { empresa: "Gimnasio Demo Fuerte", contacto: "Rubén Paz", plan: "Content Pro", m: 2400, inicio: hace(162), dur: 6, resp: equipo[3].id },
+  { empresa: "Abogados Demo & Asociados", contacto: "Marta Vidal", plan: "Podcast + redes", m: 3500, inicio: hace(90), dur: 12, resp: equipo[0].id },
+];
+for (const c of clientes) {
+  const { data: cl } = await sb.from("clientes").insert({
+    empresa: c.empresa, nombre_contacto: c.contacto, email: c.contacto.split(" ")[0].toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "") + "@ejemplo.com",
+    estado: "activo", fecha_alta: c.inicio, responsable_comercial_id: c.resp,
+  }).select().single();
+  await sb.from("contratos").insert({ cliente_id: cl.id, titulo_plan: c.plan, importe_mensual: c.m, duracion_meses: c.dur, fecha_inicio: c.inicio, fecha_fin: c.inicio });
+  await sb.from("cliente_responsables").insert([
+    { cliente_id: cl.id, funcion_id: funciones.find((f) => f.nombre === "Guionista").id, persona_id: equipo[1].id },
+    { cliente_id: cl.id, funcion_id: funciones.find((f) => f.nombre === "Filmmaker").id, persona_id: equipo[2].id },
+  ]);
 }
 console.log("Datos de ejemplo cargados. Entra con aitor@demo.local / demo1234");

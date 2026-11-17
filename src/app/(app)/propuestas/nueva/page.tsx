@@ -7,7 +7,7 @@ import { FormularioPropuesta, type ValoresPropuesta } from "@/components/formula
 export default async function NuevaPropuestaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ oportunidad?: string; cliente?: string; tipo?: string; desde?: string }>;
+  searchParams: Promise<{ oportunidad?: string; cliente?: string; tipo?: string; desde?: string; contrato?: string }>;
 }) {
   await exigirRol("direccion", "comercial");
   const sp = await searchParams;
@@ -49,7 +49,7 @@ export default async function NuevaPropuestaPage({
         duracion_meses: base.duracion_meses,
         preparada_por: base.preparada_por,
         vendida_por_tipo: base.vendida_por_tipo,
-        vendida_por_nombre: base.vendida_por_nombre,
+        vendida_por: base.vendida_por,
       };
     }
   }
@@ -65,11 +65,40 @@ export default async function NuevaPropuestaPage({
       instagram: c.instagram,
       tipo: sp.tipo === "renovacion" ? "renovacion" : "upsell",
     };
+    if (sp.contrato) {
+      // Renovación con cambios: parte del contrato actual
+      const supabase = await createClient();
+      const { data: ct } = await supabase
+        .from("contratos")
+        .select("*, propuestas!contratos_propuesta_id_fkey(propuesta_servicios(servicio_id), preparada_por, vendida_por, vendida_por_tipo)")
+        .eq("id", sp.contrato)
+        .eq("cliente_id", c.id)
+        .single();
+      if (ct) {
+        const pr = ct.propuestas as { propuesta_servicios: { servicio_id: string }[]; preparada_por: string | null; vendida_por: string | null; vendida_por_tipo: "interno" | "abx" } | null;
+        valores = {
+          ...valores,
+          tipo: "renovacion",
+          contrato_renovado_id: ct.id,
+          titulo_plan: ct.titulo_plan,
+          importe_mensual: ct.importe_mensual,
+          importe_unico: 0,
+          duracion_meses: ct.duracion_meses,
+          servicios: pr?.propuesta_servicios.map((x) => x.servicio_id) ?? [],
+          preparada_por: pr?.preparada_por ?? null,
+          vendida_por: pr?.vendida_por ?? null,
+          vendida_por_tipo: pr?.vendida_por_tipo ?? "interno",
+        };
+      }
+    }
   }
 
   return (
     <div className="mx-auto max-w-3xl">
-      <Cabecera titulo={o ? `Nueva versión · ${o.empresa}` : "Nueva propuesta"} />
+      <Cabecera
+        titulo={o ? `Nueva versión · ${o.empresa}` : valores.contrato_renovado_id ? `Renovación con cambios · ${valores.empresa}` : "Nueva propuesta"}
+        subtitulo={valores.contrato_renovado_id ? "Parte del contrato actual: cambia lo que haga falta. Seguirá el flujo normal de aceptar/denegar." : undefined}
+      />
       <FormularioPropuesta valores={valores} {...opciones} />
     </div>
   );

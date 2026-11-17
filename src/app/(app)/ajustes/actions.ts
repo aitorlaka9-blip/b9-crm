@@ -9,7 +9,11 @@ export async function anadirPersona(form: FormData) {
   const nombre = String(form.get("nombre") ?? "").trim();
   if (!nombre) return;
   const supabase = await createClient();
-  await supabase.from("equipo").insert({ nombre, email: String(form.get("email") ?? "").trim() || null });
+  await supabase.from("equipo").insert({
+    nombre,
+    email: String(form.get("email") ?? "").trim() || null,
+    empresa: form.get("empresa") === "abx" ? "abx" : "b9",
+  });
   revalidatePath("/ajustes");
 }
 

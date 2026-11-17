@@ -5,7 +5,7 @@ export async function opcionesFormulario() {
   const supabase = await createClient();
   const [s, e, o, c] = await Promise.all([
     supabase.from("servicios").select("id, nombre").eq("activo", true).order("orden"),
-    supabase.from("equipo").select("id, nombre").eq("activo", true).order("nombre"),
+    supabase.from("equipo").select("id, nombre, empresa").eq("activo", true).order("nombre"),
     supabase
       .from("oportunidades")
       .select("id, empresa, nombre_contacto, sector, email, telefono, instagram, cliente_id, propuestas(version)")

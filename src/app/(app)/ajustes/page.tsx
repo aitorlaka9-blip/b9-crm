@@ -18,13 +18,14 @@ export default async function AjustesPage() {
       <section className="tarjeta p-4 md:p-6">
         <h2 className="font-semibold">Equipo interno</h2>
         <p className="mb-4 text-sm text-zinc-500">
-          Personas que preparan propuestas y que se asignan como responsables de cada cliente. No necesitan acceso al CRM.
+          Personas de B9 y de ABX: preparan o venden propuestas, se asignan como responsables y reciben los avisos de renovación por email. No necesitan acceso al CRM.
         </p>
         <ul className="mb-4 divide-y divide-zinc-100">
           {(equipo ?? []).map((p) => (
             <li key={p.id} className="flex items-center gap-3 py-2">
               <span className={`flex-1 text-sm ${p.activo ? "" : "text-zinc-400 line-through"}`}>
-                {p.nombre} {p.email && <span className="text-zinc-400">· {p.email}</span>}
+                {p.nombre} {p.empresa === "abx" && <span className="rounded bg-zinc-100 px-1 text-[11px] text-zinc-600">ABX</span>}{" "}
+                {p.email && <span className="text-zinc-400">· {p.email}</span>}
               </span>
               <form action={alternarPersona.bind(null, p.id, !p.activo)}>
                 <button className="text-xs text-zinc-500 underline">{p.activo ? "Desactivar" : "Activar"}</button>
@@ -34,7 +35,11 @@ export default async function AjustesPage() {
         </ul>
         <form action={anadirPersona} className="flex flex-col gap-2 sm:flex-row">
           <input name="nombre" required placeholder="Nombre" className="input" />
-          <input name="email" type="email" placeholder="Email (opcional)" className="input" />
+          <input name="email" type="email" placeholder="Email (para los avisos)" className="input" />
+          <select name="empresa" className="input sm:w-32">
+            <option value="b9">B9</option>
+            <option value="abx">ABX</option>
+          </select>
           <button className="btn-primario">Añadir</button>
         </form>
       </section>

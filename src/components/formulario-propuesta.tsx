@@ -6,7 +6,7 @@ import { guardarPropuesta } from "@/app/(app)/propuestas/actions";
 import { SubidaArchivo, type ArchivoSubido } from "@/components/subida-archivo";
 import { hoyISO } from "@/lib/etiquetas";
 
-export type Opcion = { id: string; nombre: string };
+export type Opcion = { id: string; nombre: string; empresa?: "b9" | "abx" };
 export type OportunidadOpcion = {
   id: string;
   empresa: string;
@@ -48,7 +48,9 @@ export type ValoresPropuesta = {
   fecha_envio?: string | null;
   preparada_por?: string | null;
   vendida_por_tipo?: "interno" | "abx";
+  vendida_por?: string | null;
   vendida_por_nombre?: string | null;
+  contrato_renovado_id?: string | null;
   notas?: string | null;
   archivo_nombre?: string | null;
 };
@@ -144,6 +146,8 @@ export function FormularioPropuesta({
       {v.propuesta_id && <input type="hidden" name="propuesta_id" value={v.propuesta_id} />}
       {v.oportunidad_id && <input type="hidden" name="oportunidad_id" value={v.oportunidad_id} />}
       {v.cliente_id && <input type="hidden" name="cliente_id" value={v.cliente_id} />}
+      {v.contrato_renovado_id && <input type="hidden" name="contrato_renovado_id" value={v.contrato_renovado_id} />}
+      <input type="hidden" name="vendida_por_tipo" value={v.vendida_por_tipo ?? "interno"} />
       {archivo && (
         <>
           <input type="hidden" name="archivo_path" value={archivo.path} />
@@ -333,23 +337,40 @@ export function FormularioPropuesta({
             <label className="label">Preparada por</label>
             <select className="input" {...campo("preparada_por")}>
               <option value="">—</option>
-              {equipo.map((e) => (
+              {equipo.filter((e) => e.empresa !== "abx").map((e) => (
                 <option key={e.id} value={e.id}>
                   {e.nombre}
                 </option>
               ))}
             </select>
           </div>
-          <div>
+          <div className="md:col-span-2">
             <label className="label">Vendida por</label>
-            <select className="input" {...campo("vendida_por_tipo")}>
-              <option value="interno">Equipo interno</option>
-              <option value="abx">ABX (empresa comercial)</option>
+            <select
+              className="input"
+              name="vendida_por"
+              value={v.vendida_por ?? ""}
+              onChange={(e) => {
+                const persona = equipo.find((x) => x.id === e.target.value);
+                setV((x) => ({ ...x, vendida_por: e.target.value || null, vendida_por_tipo: persona?.empresa === "abx" ? "abx" : "interno" }));
+              }}
+            >
+              <option value="">—</option>
+              <optgroup label="Equipo interno B9">
+                {equipo.filter((e) => e.empresa !== "abx").map((e) => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </optgroup>
+              <optgroup label="ABX (empresa comercial)">
+                {equipo.filter((e) => e.empresa === "abx").map((e) => (
+                  <option key={e.id} value={e.id}>{e.nombre}</option>
+                ))}
+              </optgroup>
             </select>
-          </div>
-          <div>
-            <label className="label">Nombre del vendedor</label>
-            <input className="input" placeholder="Quién cerró la venta" {...campo("vendida_por_nombre")} />
+            {v.vendida_por_nombre && !v.vendida_por && (
+              <p className="mt-1 text-xs text-zinc-500">Según el documento: {v.vendida_por_nombre}</p>
+            )}
+            <p className="mt-1 text-xs text-zinc-500">Las personas de ABX se dan de alta en Ajustes → Equipo.</p>
           </div>
         </div>
         <div>

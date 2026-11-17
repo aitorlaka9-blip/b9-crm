@@ -68,7 +68,7 @@ export async function guardarPropuesta(_prev: ResultadoForm, form: FormData): Pr
     fecha_envio: txt(form.get("fecha_envio")),
     preparada_por: txt(form.get("preparada_por")),
     vendida_por_tipo: (txt(form.get("vendida_por_tipo")) ?? "interno") as "interno" | "abx",
-    vendida_por_nombre: txt(form.get("vendida_por_nombre")),
+    vendida_por: txt(form.get("vendida_por")),
     notas: txt(form.get("notas")),
     ...(form.get("archivo_path")
       ? {
@@ -105,6 +105,13 @@ export async function guardarPropuesta(_prev: ResultadoForm, form: FormData): Pr
       .from("propuesta_servicios")
       .insert(servicios.map((s) => ({ propuesta_id: id!, servicio_id: s })));
     if (error) return { error: error.message };
+  }
+
+  const contratoRenovado = txt(form.get("contrato_renovado_id"));
+  if (contratoRenovado && !propuestaId) {
+    const { error } = await supabase.rpc("renovacion_en_negociacion", { p_contrato: contratoRenovado, p_propuesta: id });
+    if (error) return { error: error.message };
+    revalidatePath("/clientes");
   }
 
   revalidatePath("/propuestas");
@@ -146,4 +153,43 @@ export async function eliminarPropuesta(id: string) {
   if (!count) await supabase.from("oportunidades").delete().eq("id", p.oportunidad_id);
   revalidatePath("/propuestas");
   redirect("/propuestas");
+}
+
+export async function aceptarPropuesta(_prev: ResultadoForm, form: FormData): Promise<ResultadoForm> {
+  await exigirRol("direccion", "comercial");
+  const supabase = await createClient();
+  const id = String(form.get("propuesta_id"));
+  const responsables = [...form.entries()]
+    .filter(([k]) => k.startsWith("resp_"))
+    .map(([k, v]) => ({ funcion_id: k.slice(5), persona_id: String(v) }));
+
+  const { data: clienteId, error } = await supabase.rpc("aceptar_propuesta", {
+    p_propuesta: id,
+    p_fecha_inicio: txt(form.get("fecha_inicio")),
+    p_cliente: txt(form.get("cliente_id")),
+    p_responsable_comercial: txt(form.get("responsable_comercial_id")),
+    p_responsables: responsables,
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  redirect(`/clientes/${clienteId}?nuevo=1`);
+}
+
+export async function denegarPropuesta(_prev: ResultadoForm, form: FormData): Promise<ResultadoForm> {
+  await exigirRol("direccion", "comercial");
+  const categoria = txt(form.get("categoria"));
+  const comentario = txt(form.get("comentario"));
+  if (!categoria) return { error: "Elige la categoría del motivo." };
+  if (!comentario) return { error: "El comentario es obligatorio." };
+  const supabase = await createClient();
+  const id = String(form.get("propuesta_id"));
+  const { error } = await supabase.rpc("denegar_propuesta", {
+    p_propuesta: id,
+    p_categoria: categoria,
+    p_comentario: comentario,
+    p_recontactar: txt(form.get("recontactar_el")),
+  });
+  if (error) return { error: error.message };
+  revalidatePath("/", "layout");
+  redirect(`/propuestas/${id}`);
 }

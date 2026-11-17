@@ -44,6 +44,7 @@ export default async function EditarPropuestaPage({ params }: { params: Promise<
           fecha_envio: p.fecha_envio,
           preparada_por: p.preparada_por,
           vendida_por_tipo: p.vendida_por_tipo,
+          vendida_por: p.vendida_por,
           vendida_por_nombre: p.vendida_por_nombre,
           notas: p.notas,
           archivo_nombre: p.archivo_nombre,

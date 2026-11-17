@@ -54,6 +54,43 @@ export default async function PropuestaPage({
     supabase.from("motivos").select("*").eq("propuesta_id", id).order("created_at", { ascending: false }),
   ]);
 
+  // Datos para el modal de aceptar
+  const [{ data: funciones }, { data: equipo }] = await Promise.all([
+    supabase.from("funciones_internas").select("id, nombre").order("orden"),
+    supabase.from("equipo").select("id, nombre, empresa").eq("activo", true).order("nombre"),
+  ]);
+  let clienteActual: { id: string; empresa: string } | null = null;
+  let responsablesActuales: Record<string, string> = {};
+  let responsableComercial: string | null = p.vendida_por;
+  let candidatos: { id: string; empresa: string; motivo: string }[] = [];
+  let fechaInicio: string | null = null;
+  if (p.cliente_id) {
+    const { data: cl } = await supabase
+      .from("clientes")
+      .select("id, empresa, responsable_comercial_id, cliente_responsables(funcion_id, persona_id)")
+      .eq("id", p.cliente_id)
+      .single();
+    if (cl) {
+      clienteActual = { id: cl.id, empresa: cl.empresa };
+      responsableComercial = cl.responsable_comercial_id ?? responsableComercial;
+      responsablesActuales = Object.fromEntries(cl.cliente_responsables.map((r) => [r.funcion_id, r.persona_id]));
+    }
+  } else {
+    // ¿Existe ya un cliente con el mismo email o nombre?
+    const filtros = [`empresa.ilike.${p.empresa.replace(/[%,()]/g, " ")}`];
+    if (p.email) filtros.push(`email.eq.${p.email}`);
+    const { data: cs } = await supabase.from("clientes").select("id, empresa, email").or(filtros.join(","));
+    candidatos = (cs ?? []).map((c) => ({
+      id: c.id,
+      empresa: c.empresa,
+      motivo: p.email && c.email === p.email ? "mismo email" : "mismo nombre",
+    }));
+  }
+  if (p.contrato_renovado_id) {
+    const { data: ct } = await supabase.from("contratos").select("fecha_fin").eq("id", p.contrato_renovado_id).single();
+    fechaInicio = ct?.fecha_fin ?? null;
+  }
+
   let urlArchivo: string | null = null;
   if (p.archivo_path) {
     const { data } = await supabase.storage.from("propuestas").createSignedUrl(p.archivo_path, 3600);
@@ -76,6 +113,11 @@ export default async function PropuestaPage({
           </h1>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <EtiquetaEstado estado={p.estado} />
+            {p.cliente_id && (
+              <Link href={`/clientes/${p.cliente_id}`} className="text-xs font-medium text-marca-600 underline">
+                Ver ficha de cliente
+              </Link>
+            )}
             <span className="text-xs text-zinc-500">{TIPOS_PROPUESTA[p.tipo as keyof typeof TIPOS_PROPUESTA]}</span>
             {p.dias_desde_envio != null && ["enviada", "en_negociacion"].includes(p.estado) && (
               <span className={`text-xs ${p.dias_desde_envio >= 7 ? "font-medium text-amber-700" : "text-zinc-500"}`}>
@@ -117,6 +159,16 @@ export default async function PropuestaPage({
         diasDesdeEnvio={p.dias_desde_envio}
         accionInicial={accion}
         esDireccion={usuario.rol === "direccion"}
+        datosAceptar={{
+          funciones: funciones ?? [],
+          equipo: (equipo ?? []) as { id: string; nombre: string; empresa: "b9" | "abx" }[],
+          clienteActual,
+          candidatos,
+          responsablesActuales,
+          responsableComercial,
+          fechaInicio,
+          esRenovacion: !!p.contrato_renovado_id,
+        }}
       />
 
       {motivos && motivos.length > 0 && (
@@ -159,7 +211,7 @@ export default async function PropuestaPage({
             <Dato k="Fecha de envío" v={fecha(p.fecha_envio)} />
             <Dato k="Preparada por" v={p.preparada_por_nombre} />
             <Dato k="Vendida por" v={VENDEDORES[p.vendida_por_tipo as keyof typeof VENDEDORES]} />
-            <Dato k="Vendedor" v={p.vendida_por_nombre} />
+            <Dato k="Vendedor" v={p.vendedor_nombre} />
           </dl>
           {p.notas && (
             <div className="mt-6">
