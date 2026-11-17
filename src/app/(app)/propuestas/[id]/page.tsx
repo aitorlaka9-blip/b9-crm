@@ -5,6 +5,7 @@ import { exigirRol } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { EtiquetaEstado } from "@/components/ui";
 import { AccionesEstado } from "@/components/acciones-estado";
+import { marcarRevisada } from "../actions";
 import {
   CATEGORIAS_NO_RENOVACION,
   ESTADOS_PROPUESTA,
@@ -170,6 +171,25 @@ export default async function PropuestaPage({
           esRenovacion: !!p.contrato_renovado_id,
         }}
       />
+
+      {!p.revisada && (
+        <section className="mb-4 flex flex-col gap-2 rounded-xl border border-marca-100 bg-marca-50 p-4 text-sm md:flex-row md:items-center">
+          <div className="flex-1">
+            <p className="font-semibold text-marca-700">
+              Creada automáticamente {p.origen === "drive" ? "desde la carpeta de Drive" : "en la importación"}: revisa los datos
+            </p>
+            {(p.extraccion_ia?.avisos ?? []).map((a: string, i: number) => (
+              <p key={i} className="text-amber-800">• {a}</p>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <Link href={`/propuestas/${id}/editar`} className="btn-secundario">Corregir</Link>
+            <form action={marcarRevisada.bind(null, id)}>
+              <button className="btn-primario">Está bien</button>
+            </form>
+          </div>
+        </section>
+      )}
 
       {motivos && motivos.length > 0 && (
         <section className="mb-4 rounded-xl border border-red-200 bg-red-50 p-4">

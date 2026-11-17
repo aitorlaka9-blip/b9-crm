@@ -1,7 +1,9 @@
 "use client";
 
+import Link from "next/link";
 import { useActionState, useMemo, useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Sparkles } from "lucide-react";
+import { extraerDatos, type ResultadoExtraccion } from "@/app/(app)/propuestas/extraer";
 import { guardarPropuesta } from "@/app/(app)/propuestas/actions";
 import { SubidaArchivo, type ArchivoSubido } from "@/components/subida-archivo";
 import { hoyISO } from "@/lib/etiquetas";
@@ -89,6 +91,33 @@ export function FormularioPropuesta({
     ...valores,
   });
   const [archivo, setArchivo] = useState<ArchivoSubido | null>(null);
+  const [leyendo, setLeyendo] = useState(false);
+  const [ia, setIa] = useState<ResultadoExtraccion | null>(null);
+
+  async function alSubir(a: ArchivoSubido) {
+    setArchivo(a);
+    if (editando) return;
+    setLeyendo(true);
+    setIa(null);
+    const r = await extraerDatos(a.path, a.nombre, a.hash);
+    setIa(r);
+    setLeyendo(false);
+    if (!r.ok) return;
+    const { valores: x, plan } = r;
+    const limpio = Object.fromEntries(Object.entries(x).filter(([, val]) => val !== null && val !== undefined));
+    setV((prev) => ({
+      ...prev,
+      ...limpio,
+      oportunidad_id: plan.oportunidad_id,
+      cliente_id: plan.cliente_id,
+      version: plan.version,
+      tipo: plan.tipo,
+      ...(plan.oportunidad_id && oportunidades.find((o) => o.id === plan.oportunidad_id)
+        ? { empresa: oportunidades.find((o) => o.id === plan.oportunidad_id)!.empresa }
+        : {}),
+    }));
+    setModo(plan.oportunidad_id ? "version" : plan.cliente_id ? "cliente" : "nuevo");
+  }
 
   const set = <K extends keyof ValoresPropuesta>(k: K, val: ValoresPropuesta[K]) => setV((x) => ({ ...x, [k]: val }));
 
@@ -161,15 +190,51 @@ export function FormularioPropuesta({
         <h2 className="mb-3 font-semibold">Documento de la propuesta</h2>
         <SubidaArchivo
           actual={archivo ? { nombre: archivo.nombre } : v.archivo_nombre ? { nombre: v.archivo_nombre } : null}
-          onSubido={setArchivo}
+          onSubido={alSubir}
           onQuitar={() => {
             setArchivo(null);
+            setIa(null);
             set("archivo_nombre", null);
           }}
         />
-        <p className="mt-2 text-xs text-zinc-500">
-          En la fase 3 el CRM leerá el documento con IA y rellenará el formulario automáticamente.
-        </p>
+        {!editando && !archivo && !v.archivo_nombre && (
+          <p className="mt-2 flex items-center gap-1 text-xs text-zinc-500">
+            <Sparkles className="h-3.5 w-3.5" /> Al subirlo, la IA lee el documento y rellena el formulario. Tú lo revisas antes de guardar.
+          </p>
+        )}
+        {leyendo && (
+          <p className="mt-3 flex items-center gap-2 rounded-lg bg-marca-50 p-3 text-sm font-medium text-marca-700">
+            <Loader2 className="h-4 w-4 animate-spin" /> Leyendo la propuesta con IA… (unos segundos)
+          </p>
+        )}
+        {ia && !ia.ok && (
+          <div className="mt-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">
+            {ia.error}{" "}
+            {ia.duplicada && (
+              <Link href={`/propuestas/${ia.duplicada.id}`} className="font-medium underline">
+                Ver la propuesta de {ia.duplicada.empresa}
+              </Link>
+            )}
+          </div>
+        )}
+        {ia && ia.ok && (
+          <div className="mt-3 space-y-1 rounded-lg bg-emerald-50 p-3 text-sm text-emerald-900">
+            <p className="flex items-center gap-1 font-medium">
+              <Sparkles className="h-4 w-4" /> Datos rellenados por la IA. Revísalos antes de guardar.
+            </p>
+            {ia.noEsPropuesta && <p className="font-medium text-red-700">⚠ No parece una propuesta comercial.</p>}
+            {ia.plan.oportunidad_id && (
+              <p>Ya hay una propuesta abierta para {ia.plan.oportunidad_empresa}: se guardará como versión {ia.plan.version}.</p>
+            )}
+            {!ia.plan.oportunidad_id && ia.plan.cliente_id && (
+              <p>{ia.plan.cliente_empresa} ya es cliente: se guardará como upsell.</p>
+            )}
+            {ia.avisos.map((a, i) => (
+              <p key={i} className="text-amber-800">• {a}</p>
+            ))}
+          </div>
+        )}
+        {ia && ia.ok && <input type="hidden" name="extraccion_ia" value={JSON.stringify(ia.extraccion)} />}
       </section>
 
       {/* Cliente */}

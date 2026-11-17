@@ -70,6 +70,7 @@ export async function guardarPropuesta(_prev: ResultadoForm, form: FormData): Pr
     vendida_por_tipo: (txt(form.get("vendida_por_tipo")) ?? "interno") as "interno" | "abx",
     vendida_por: txt(form.get("vendida_por")),
     notas: txt(form.get("notas")),
+    revisada: true,
     ...(form.get("archivo_path")
       ? {
           archivo_path: txt(form.get("archivo_path")),
@@ -192,4 +193,12 @@ export async function denegarPropuesta(_prev: ResultadoForm, form: FormData): Pr
   if (error) return { error: error.message };
   revalidatePath("/", "layout");
   redirect(`/propuestas/${id}`);
+}
+
+export async function marcarRevisada(id: string) {
+  await exigirRol("direccion", "comercial");
+  const supabase = await createClient();
+  await supabase.from("propuestas").update({ revisada: true }).eq("id", id);
+  revalidatePath("/propuestas");
+  revalidatePath(`/propuestas/${id}`);
 }

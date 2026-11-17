@@ -8,6 +8,7 @@ import { euros, fecha, VENDEDORES, type EstadoPropuesta } from "@/lib/etiquetas"
 
 const FILTROS: { id: string; texto: string; estados?: EstadoPropuesta[] }[] = [
   { id: "abiertas", texto: "Abiertas", estados: ["borrador", "enviada", "en_negociacion"] },
+  { id: "revisar", texto: "Por revisar" },
   { id: "aceptadas", texto: "Aceptadas", estados: ["aceptada"] },
   { id: "denegadas", texto: "Denegadas", estados: ["denegada"] },
   { id: "sin_respuesta", texto: "Sin respuesta", estados: ["sin_respuesta"] },
@@ -30,6 +31,7 @@ export type FilaPropuesta = {
   vendida_por_tipo: "interno" | "abx";
   servicios: string[];
   num_versiones: number;
+  revisada: boolean;
 };
 
 export default async function PropuestasPage({
@@ -45,11 +47,12 @@ export default async function PropuestasPage({
   let consulta = supabase
     .from("v_propuestas")
     .select(
-      "id, oportunidad_id, version, titulo_plan, empresa, nombre_contacto, estado, importe_mensual, importe_unico, duracion_meses, fecha_envio, dias_desde_envio, vendida_por_tipo, servicios, num_versiones",
+      "id, oportunidad_id, version, titulo_plan, empresa, nombre_contacto, estado, importe_mensual, importe_unico, duracion_meses, fecha_envio, dias_desde_envio, vendida_por_tipo, servicios, num_versiones, revisada",
     )
     .order("fecha_envio", { ascending: false, nullsFirst: true })
     .order("version");
   if (f.estados) consulta = consulta.in("estado", f.estados);
+  if (f.id === "revisar") consulta = consulta.eq("revisada", false);
   if (vendedor === "interno" || vendedor === "abx") consulta = consulta.eq("vendida_por_tipo", vendedor);
   if (q.trim()) {
     const t = q.trim().replace(/[%,()]/g, " ");
@@ -148,6 +151,11 @@ export default async function PropuestasPage({
                         <div className="flex items-center gap-2">
                           <span className="rounded bg-zinc-100 px-1.5 py-0.5 text-xs font-semibold text-zinc-600">{p.version}</span>
                           <span className="truncate font-medium">{p.titulo_plan}</span>
+                          {!p.revisada && (
+                            <span className="whitespace-nowrap rounded-full bg-marca-100 px-2 py-0.5 text-[11px] font-medium text-marca-700">
+                              Por revisar
+                            </span>
+                          )}
                         </div>
                         <p className="mt-1 truncate text-xs text-zinc-500">
                           {p.servicios.join(" · ") || "Sin servicios"}
