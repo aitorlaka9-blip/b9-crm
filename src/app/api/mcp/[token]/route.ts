@@ -1,7 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
 import { procesarEntrante } from "@/lib/ingesta";
-import { registrar } from "@/lib/registro-conector";
 
 /**
  * Conector del CRM para Claude (protocolo MCP sobre HTTP, sin estado).
@@ -105,17 +104,11 @@ async function responder(p: Peticion, base: string) {
 
 export async function POST(request: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const cab = `accept=${request.headers.get("accept")} ct=${request.headers.get("content-type")} ua=${request.headers.get("user-agent")} auth=${request.headers.has("authorization")}`;
-  if (!tokenValido(token)) {
-    await registrar("POST", new URL(request.url).pathname, `token no válido (long ${token.length}) ${cab}`, 401);
-    return Response.json({ error: "No autorizado" }, { status: 401 });
-  }
+  if (!tokenValido(token)) return Response.json({ error: "No autorizado" }, { status: 401 });
 
   let cuerpo: Peticion | Peticion[];
   try {
     cuerpo = await request.json();
-    const metodos = (Array.isArray(cuerpo) ? cuerpo : [cuerpo]).map((x) => `${x.method}${x.params?.protocolVersion ? "@" + x.params.protocolVersion : ""}`).join(",");
-    await registrar("POST", new URL(request.url).pathname, `${metodos} ${cab}`, 200);
   } catch {
     return Response.json({ jsonrpc: "2.0", id: null, error: { code: -32700, message: "JSON no válido" } }, { status: 400 });
   }
@@ -126,12 +119,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ tok
   return Response.json(Array.isArray(cuerpo) ? respuestas : respuestas[0]);
 }
 
-export async function GET(request: Request) {
-  await registrar("GET", new URL(request.url).pathname, `accept=${request.headers.get("accept")} ua=${request.headers.get("user-agent")}`, 405);
+export async function GET() {
   return new Response("Método no permitido", { status: 405, headers: { Allow: "POST" } });
 }
 
-export async function DELETE(request: Request) {
-  await registrar("DELETE", new URL(request.url).pathname, "", 405);
+export async function DELETE() {
   return new Response(null, { status: 405 });
 }
