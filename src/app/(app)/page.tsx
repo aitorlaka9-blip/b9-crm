@@ -87,7 +87,10 @@ export default async function InicioPage() {
 
   const renovaciones = cts.filter((c) => c.renovacion_pendiente).sort((a, b) => a.fecha_fin.localeCompare(b.fecha_fin));
   const enRiesgo = renovaciones.filter((c) => c.dias_para_fin <= 30).reduce((s, c) => s + Number(c.importe_mensual), 0);
-  const vencidos12 = cts.filter((c) => c.fecha_fin >= hace365 && ["renovado", "no_renueva"].includes(c.estado_renovacion));
+  // Solo planes recurrentes: los trabajos puntuales (sin cuota mensual) no cuentan como "no renovados"
+  const vencidos12 = cts.filter(
+    (c) => Number(c.importe_mensual) > 0 && c.fecha_fin >= hace365 && ["renovado", "no_renueva"].includes(c.estado_renovacion),
+  );
   const renovados = vencidos12.filter((c) => c.estado_renovacion === "renovado").length;
   const tasaRenov = vencidos12.length ? renovados / vencidos12.length : null;
 
