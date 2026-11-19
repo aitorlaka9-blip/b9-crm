@@ -27,7 +27,13 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const publica = RUTAS_PUBLICAS.some((r) => request.nextUrl.pathname.startsWith(r));
+  const ruta = request.nextUrl.pathname;
+  // Rutas que usan programas (Claude, OAuth, Drive): nunca se redirigen al login.
+  // Si no existen, responden 404, así Claude entiende que el conector no necesita iniciar sesión.
+  if (ruta.startsWith("/.well-known") || ruta === "/register" || ruta === "/authorize" || ruta === "/token") {
+    return new NextResponse(null, { status: 404 });
+  }
+  const publica = RUTAS_PUBLICAS.some((r) => ruta.startsWith(r));
   if (!user && !publica) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
