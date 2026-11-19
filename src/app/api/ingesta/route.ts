@@ -1,15 +1,6 @@
 import { timingSafeEqual } from "node:crypto";
 import { createAdminClient } from "@/lib/supabase/server";
-import { extraerPropuesta } from "@/lib/extraccion";
-import {
-  cargarCatalogos,
-  crearPropuesta,
-  mapearDatos,
-  notificarDireccion,
-  planificar,
-  sha256,
-  subirArchivo,
-} from "@/lib/ingesta";
+import { procesarEntrante } from "@/lib/ingesta";
 
 export const maxDuration = 120;
 
@@ -38,41 +29,14 @@ export async function POST(request: Request) {
   if (!nombre || !cuerpo.contenido_base64) return Response.json({ error: "Faltan nombre o contenido" }, { status: 400 });
   if (!/\.(pdf|md|markdown)$/i.test(nombre)) return Response.json({ estado: "ignorado", motivo: "No es PDF ni .md" });
 
-  const archivo = Buffer.from(cuerpo.contenido_base64, "base64");
-  const hash = sha256(archivo);
-  const sb = createAdminClient();
-
-  const { data: dup } = await sb.from("propuestas").select("id").eq("archivo_hash", hash).maybeSingle();
-  if (dup) return Response.json({ estado: "duplicada", propuesta_id: dup.id });
-
   try {
-    const cat = await cargarCatalogos(sb);
-    const { datos, modelo } = await extraerPropuesta({
-      archivo,
-      nombreArchivo: nombre,
-      servicios: cat.servicios.map((s) => s.nombre),
-    });
-    if (!datos.es_propuesta_comercial) return Response.json({ estado: "no_es_propuesta" });
-
-    const m = mapearDatos(datos, cat);
-    const plan = await planificar(sb, m);
-    const path = await subirArchivo(sb, archivo, nombre, hash);
-    const id = await crearPropuesta(sb, {
-      m,
-      plan,
-      archivo: { path, nombre, hash },
-      extraccion: { ...datos, modelo, fecha: new Date().toISOString() },
-      fechaArchivo: cuerpo.fecha?.slice(0, 10) ?? null,
+    const r = await procesarEntrante(createAdminClient(), {
+      nombre,
+      archivo: Buffer.from(cuerpo.contenido_base64, "base64"),
+      fecha: cuerpo.fecha ?? null,
       origen: "drive",
     });
-    await notificarDireccion(sb, {
-      tipo: "propuesta_nueva",
-      titulo: `Nueva propuesta: ${m.empresa ?? nombre}`,
-      cuerpo: `${m.titulo_plan ?? "Propuesta"} · revisa los datos que ha extraído la IA`,
-      enlace: `/propuestas/${id}`,
-      clave: `propuesta-${id}`,
-    });
-    return Response.json({ estado: "creada", propuesta_id: id });
+    return Response.json(r);
   } catch (e) {
     console.error("ingesta", nombre, e);
     return Response.json({ error: e instanceof Error ? e.message : "Error" }, { status: 500 });

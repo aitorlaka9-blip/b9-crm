@@ -1,6 +1,8 @@
 import { exigirRol } from "@/lib/sesion";
 import { createClient } from "@/lib/supabase/server";
 import { Cabecera } from "@/components/ui";
+import { Copiar } from "@/components/copiar";
+import { headers } from "next/headers";
 import { guardarObjetivo } from "../acciones-inicio";
 import { alternarUsuario, borrarInvitacion, cambiarRol, invitarUsuario, alternarPersona, alternarServicio, anadirPersona, anadirServicio } from "./actions";
 
@@ -22,6 +24,11 @@ export default async function AjustesPage() {
     supabase.from("usuarios").select("*").order("activo", { ascending: false }).order("nombre"),
     supabase.from("invitaciones").select("*").order("created_at"),
   ]);
+  const h = await headers();
+  const base = process.env.NEXT_PUBLIC_SITE_URL ?? `${h.get("x-forwarded-proto") ?? "https"}://${h.get("host")}`;
+  const urlConector = process.env.MCP_SECRET ? `${base}/api/mcp/${process.env.MCP_SECRET}` : null;
+  const preferencias =
+    "Trabajo en B9 Creative Studios. Cada vez que terminemos una propuesta comercial para un cliente o lead (y cada versión u opción de una misma propuesta), súbela al CRM con la herramienta subir_propuesta_al_crm del conector B9 CRM, enviando la propuesta completa en Markdown, y dime el enlace que devuelve.";
   const pendientes = (invitaciones ?? []).filter((i) => !(usuarios ?? []).some((u) => u.email === i.email));
 
   return (
@@ -80,6 +87,35 @@ export default async function AjustesPage() {
           </select>
           <button className="btn-primario">Invitar</button>
         </form>
+      </section>
+
+      <section className="tarjeta p-4 md:p-6">
+        <h2 className="font-semibold">Conectar con Claude</h2>
+        <p className="mb-4 text-sm text-zinc-500">
+          Así, cada propuesta que prepares con Claude se sube sola al CRM. Se configura una vez.
+        </p>
+        {urlConector ? (
+          <ol className="list-decimal space-y-4 pl-5 text-sm">
+            <li>
+              En Claude (claude.ai): <b>Ajustes → Conectores → Añadir conector personalizado</b>. Nombre: <b>B9 CRM</b>. En URL pega esta
+              dirección (no la compartas: es la llave del conector):
+              <div className="mt-2 flex items-center gap-2">
+                <code className="min-w-0 flex-1 truncate rounded-lg bg-zinc-100 px-3 py-2 text-xs">{urlConector}</code>
+                <Copiar texto={urlConector} />
+              </div>
+            </li>
+            <li>
+              En Claude: <b>Ajustes → Perfil → Preferencias personales</b>, añade este texto:
+              <div className="mt-2 flex items-start gap-2">
+                <p className="min-w-0 flex-1 rounded-lg bg-zinc-100 px-3 py-2 text-xs">{preferencias}</p>
+                <Copiar texto={preferencias} />
+              </div>
+            </li>
+            <li>En cada conversación nueva, comprueba que el conector <b>B9 CRM</b> está activado (menú de herramientas del chat).</li>
+          </ol>
+        ) : (
+          <p className="text-sm text-amber-700">Falta la variable MCP_SECRET en Vercel.</p>
+        )}
       </section>
 
       <section className="tarjeta p-4 md:p-6">

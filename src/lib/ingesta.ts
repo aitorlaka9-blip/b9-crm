@@ -151,7 +151,7 @@ export async function crearPropuesta(
     archivo: { path: string; nombre: string; hash: string };
     extraccion: unknown;
     fechaArchivo?: string | null;
-    origen: "importacion" | "drive" | "manual";
+    origen: "importacion" | "drive" | "manual" | "claude";
     usuarioId?: string | null;
     estado?: "enviada" | "borrador";
   },
@@ -239,4 +239,65 @@ export async function notificarDireccion(
     us.map((u) => ({ usuario_id: u.id, ...n })),
     { onConflict: "usuario_id,clave", ignoreDuplicates: true },
   );
+}
+
+export type ResultadoEntrada =
+  | { estado: "creada"; propuesta_id: string; empresa: string | null; titulo: string | null; version: string; destino: string; avisos: string[] }
+  | { estado: "duplicada"; propuesta_id: string }
+  | { estado: "no_es_propuesta" };
+
+/**
+ * Alta automática de una propuesta a partir de un archivo (Drive o conector de Claude):
+ * evita duplicados, la lee con IA, decide si es lead nuevo / versión / upsell, la guarda y avisa a Dirección.
+ */
+export async function procesarEntrante(
+  sb: SupabaseClient,
+  e: { nombre: string; archivo: Buffer; fecha?: string | null; origen: "drive" | "claude"; notas?: string | null },
+): Promise<ResultadoEntrada> {
+  const { extraerPropuesta } = await import("@/lib/extraccion");
+  const hash = sha256(e.archivo);
+  const { data: dup } = await sb.from("propuestas").select("id").eq("archivo_hash", hash).maybeSingle();
+  if (dup) return { estado: "duplicada", propuesta_id: dup.id };
+
+  const cat = await cargarCatalogos(sb);
+  const { datos, modelo } = await extraerPropuesta({
+    archivo: e.archivo,
+    nombreArchivo: e.nombre,
+    servicios: cat.servicios.map((s) => s.nombre),
+  });
+  if (!datos.es_propuesta_comercial) return { estado: "no_es_propuesta" };
+
+  const m = mapearDatos(datos, cat);
+  const plan = await planificar(sb, m);
+  const path = await subirArchivo(sb, e.archivo, e.nombre, hash);
+  const id = await crearPropuesta(sb, {
+    m,
+    plan,
+    archivo: { path, nombre: e.nombre, hash },
+    extraccion: { ...datos, modelo, fecha: new Date().toISOString() },
+    fechaArchivo: e.fecha?.slice(0, 10) ?? null,
+    origen: e.origen,
+  });
+  if (e.notas) await sb.from("propuestas").update({ notas: e.notas }).eq("id", id);
+  await notificarDireccion(sb, {
+    tipo: "propuesta_nueva",
+    titulo: `Nueva propuesta: ${m.empresa ?? e.nombre}`,
+    cuerpo: `${m.titulo_plan ?? "Propuesta"} · ${e.origen === "claude" ? "subida desde Claude" : "desde Drive"} · revisa los datos`,
+    enlace: `/propuestas/${id}`,
+    clave: `propuesta-${id}`,
+  });
+  const destino = plan.oportunidad_id
+    ? `versión ${plan.version} de la propuesta abierta de ${plan.oportunidad_empresa}`
+    : plan.cliente_id
+      ? `upsell del cliente ${plan.cliente_empresa}`
+      : "lead nuevo";
+  return {
+    estado: "creada",
+    propuesta_id: id,
+    empresa: m.empresa ?? null,
+    titulo: m.titulo_plan ?? null,
+    version: plan.version,
+    destino,
+    avisos: datos.avisos,
+  };
 }
